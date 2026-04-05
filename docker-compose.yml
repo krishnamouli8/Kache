@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  kache:
+    build: .
+    ports:
+      - "7379:7379"   # TCP protocol (telnet/nc/client)
+      - "8080:8080"   # HTTP API (health + stats)
+    restart: unless-stopped
