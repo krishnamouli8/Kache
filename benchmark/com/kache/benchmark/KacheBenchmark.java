@@ -1,3 +1,5 @@
+package com.kache.benchmark;
+
 import com.kache.store.KacheStore;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.runner.Runner;

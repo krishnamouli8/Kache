@@ -115,6 +115,11 @@ public class KacheClient implements AutoCloseable {
             System.out.println("--- Kache Client Demo ---");
             System.out.println();
 
+            // Clear any leftover state from a previous demo run.
+            // Without this, a second run would see COUNT 1 instead of COUNT 4
+            // because the deps from the first run are already gone.
+            client.delete("user:123");
+
             // Health check
             System.out.println("PING  → " + client.ping());
 

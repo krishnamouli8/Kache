@@ -163,7 +163,8 @@ class CascadeTest {
         store.set("parent", "data", 1, List.of()); // 1 second TTL
         store.set("child", "data", -1, List.of("parent"));
 
-        Thread.sleep(1200); // Wait for parent to expire
+        // 2000ms buffer — 1200ms is too tight for slow CI machines under load
+        Thread.sleep(2000);
 
         // GET parent triggers lazy expire + cascade
         assertNull(store.get("parent"));

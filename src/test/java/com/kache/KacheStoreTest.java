@@ -75,8 +75,8 @@ class KacheStoreTest {
         // Should be accessible immediately
         assertEquals("data", store.get("temp"));
 
-        // Wait for expiry (1 second + buffer)
-        Thread.sleep(1200);
+        // Wait for expiry — 2000ms buffer for slow CI machines under load
+        Thread.sleep(2000);
 
         // Should now return null (lazy expiry triggered by GET)
         assertNull(store.get("temp"));

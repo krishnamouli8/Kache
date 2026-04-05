@@ -62,6 +62,7 @@ public class Main {
             logger.info("=== Kache shutting down ===");
             HttpApi.stop();
             tcpServer.stop();
+            store.shutdown(); // Stop background TTL cleaner
             logger.info("=== Kache stopped ===");
         }, "kache-shutdown"));
 
