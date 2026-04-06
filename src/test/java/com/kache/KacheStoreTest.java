@@ -154,4 +154,29 @@ class KacheStoreTest {
         assertTrue(dependents.contains("child1"));
         assertTrue(dependents.contains("child2"));
     }
+
+    @Test
+    @DisplayName("ttl() returns remaining seconds for key with TTL")
+    void ttl_returnsRemainingSeconds() {
+        store.set("session", "token", 300, List.of());
+
+        long remaining = store.ttl("session");
+
+        // Should be between 298-300 (accounting for test execution time)
+        assertTrue(remaining >= 295 && remaining <= 300, "TTL should be ~300, got " + remaining);
+    }
+
+    @Test
+    @DisplayName("ttl() returns -1 for key without TTL")
+    void ttl_returnsMinusOneForNoTtl() {
+        store.set("permanent", "data", -1, List.of());
+
+        assertEquals(-1, store.ttl("permanent"));
+    }
+
+    @Test
+    @DisplayName("ttl() returns -2 for nonexistent key")
+    void ttl_returnsMinusTwoForMissing() {
+        assertEquals(-2, store.ttl("ghost"));
+    }
 }

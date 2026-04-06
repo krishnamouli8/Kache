@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * No client library — just raw socket I/O to prove the protocol
  * actually works as documented. This is how you'd test with telnet or nc.
  *
- * The server starts on a random-ish test port before each test
- * and shuts down after.
+ * Each test uses a unique key prefix (t1:, t2:, etc.) to prevent
+ * cross-test state pollution since the store is shared across the class.
  */
 class ProtocolTest {
 
@@ -76,53 +76,53 @@ class ProtocolTest {
     @Test
     @DisplayName("SET and GET roundtrip over protocol")
     void setAndGet_overProtocol() throws IOException {
-        assertEquals("OK", send("SET proto:key proto:value"));
-        assertEquals("VALUE proto:value", send("GET proto:key"));
+        assertEquals("OK", send("SET t1:key t1:value"));
+        assertEquals("VALUE t1:value", send("GET t1:key"));
     }
 
     @Test
     @DisplayName("GET missing key returns NULL")
     void getMissingKey_returnsNull() throws IOException {
-        assertEquals("NULL", send("GET proto:nonexistent"));
+        assertEquals("NULL", send("GET t2:nonexistent"));
     }
 
     @Test
     @DisplayName("DEL returns count including cascaded keys")
     void del_returnsCascadeCount() throws IOException {
-        send("SET proto:parent parentval");
-        send("SET proto:child childval DEPENDS proto:parent");
+        send("SET t3:parent parentval");
+        send("SET t3:child childval DEPENDS t3:parent");
 
         // Delete parent — should cascade to child
-        assertEquals("COUNT 2", send("DEL proto:parent"));
+        assertEquals("COUNT 2", send("DEL t3:parent"));
 
         // Both should be gone
-        assertEquals("NULL", send("GET proto:parent"));
-        assertEquals("NULL", send("GET proto:child"));
+        assertEquals("NULL", send("GET t3:parent"));
+        assertEquals("NULL", send("GET t3:child"));
     }
 
     @Test
     @DisplayName("DEL missing key returns COUNT 0")
     void delMissingKey_returnsZero() throws IOException {
-        assertEquals("COUNT 0", send("DEL proto:ghost"));
+        assertEquals("COUNT 0", send("DEL t4:ghost"));
     }
 
     @Test
     @DisplayName("SET with TTL and DEPENDS works")
     void setWithTtlAndDepends() throws IOException {
-        assertEquals("OK", send("SET proto:base baseval"));
-        assertEquals("OK", send("SET proto:derived derivedval TTL 60 DEPENDS proto:base"));
-        assertEquals("VALUE derivedval", send("GET proto:derived"));
+        assertEquals("OK", send("SET t5:base baseval"));
+        assertEquals("OK", send("SET t5:derived derivedval TTL 60 DEPENDS t5:base"));
+        assertEquals("VALUE derivedval", send("GET t5:derived"));
     }
 
     @Test
     @DisplayName("DEPS shows dependent keys")
     void deps_showsDependents() throws IOException {
-        send("SET proto:root rootval");
-        send("SET proto:leaf leafval DEPENDS proto:root");
+        send("SET t6:root rootval");
+        send("SET t6:leaf leafval DEPENDS t6:root");
 
-        String response = send("DEPS proto:root");
+        String response = send("DEPS t6:root");
         assertTrue(response.startsWith("DEPS "));
-        assertTrue(response.contains("proto:leaf"));
+        assertTrue(response.contains("t6:leaf"));
     }
 
     @Test
@@ -164,5 +164,31 @@ class ProtocolTest {
         assertEquals("PONG", send("ping"));
         assertEquals("PONG", send("Ping"));
         assertEquals("PONG", send("pInG"));
+    }
+
+    @Test
+    @DisplayName("TTL returns remaining seconds for key with TTL")
+    void ttl_returnsRemainingSeconds() throws IOException {
+        send("SET t7:session token TTL 300");
+
+        String response = send("TTL t7:session");
+        assertTrue(response.startsWith("TTL "));
+
+        // Should be between 298-300 (accounting for test execution time)
+        long ttl = Long.parseLong(response.substring(4).trim());
+        assertTrue(ttl >= 295 && ttl <= 300, "TTL should be ~300, got " + ttl);
+    }
+
+    @Test
+    @DisplayName("TTL returns -1 for key without TTL")
+    void ttl_returnsMinusOneForNoTtl() throws IOException {
+        send("SET t8:permanent value");
+        assertEquals("TTL -1", send("TTL t8:permanent"));
+    }
+
+    @Test
+    @DisplayName("TTL returns -2 for nonexistent key")
+    void ttl_returnsMinusTwoForMissing() throws IOException {
+        assertEquals("TTL -2", send("TTL t9:ghost"));
     }
 }

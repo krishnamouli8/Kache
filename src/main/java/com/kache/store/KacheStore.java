@@ -199,6 +199,34 @@ public class KacheStore {
     }
 
     /**
+     * Returns the remaining time-to-live for a key, in seconds.
+     *
+     * Return values follow Redis TTL semantics:
+     *   -2  key does not exist
+     *   -1  key exists but has no TTL (permanent)
+     *    0+ seconds remaining before expiry
+     *
+     * @param key the cache key to check
+     * @return remaining TTL in seconds, -1 if no TTL, -2 if key doesn't exist
+     */
+    public long ttl(String key) {
+        if (key == null || key.isBlank()) {
+            return -2;
+        }
+
+        lock.readLock().lock();
+        try {
+            CacheEntry entry = data.get(key);
+            if (entry == null) return -2;           // doesn't exist
+            if (entry.expiresAt == -1) return -1;   // no TTL set
+            long remaining = entry.expiresAt - System.currentTimeMillis();
+            return remaining > 0 ? remaining / 1000 : 0; // convert ms → seconds
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
      * Deletes a key and all its transitive dependents (cascade invalidation).
      *
      * @param key the key to delete

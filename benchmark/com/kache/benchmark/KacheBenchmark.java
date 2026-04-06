@@ -27,21 +27,39 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
-@Warmup(iterations = 3, time = 1)
-@Measurement(iterations = 5, time = 1)
+@Warmup(iterations = 5, time = 1)
+@Measurement(iterations = 10, time = 1)
 @Fork(1)
 public class KacheBenchmark {
 
     private KacheStore store;
 
     /**
-     * Builds a 1000-key linear dependency chain under a single root.
-     * This is the worst case for cascade invalidation — a long chain
-     * that forces the deepest recursion.
+     * Creates a single KacheStore instance for the entire benchmark run.
+     * Using Level.Trial (not Level.Invocation) to avoid spawning thousands
+     * of background cleaner threads — one store is reused across all invocations.
      */
-    @Setup(Level.Invocation)
-    public void setup() {
+    @Setup(Level.Trial)
+    public void setupStore() {
         store = new KacheStore();
+    }
+
+    /**
+     * Shuts down the background cleaner thread when the benchmark is done.
+     */
+    @TearDown(Level.Trial)
+    public void tearDown() {
+        store.shutdown();
+    }
+
+    /**
+     * Rebuilds the 1000-key dependency chain before each invocation.
+     * Uses delete("root") to cascade-clear any existing data first,
+     * then re-populates — avoiding new KacheStore instances.
+     */
+    private void rebuildChain() {
+        // Clear previous chain if it exists (cascade takes care of children)
+        store.delete("root");
 
         // Root key — the top of the dependency chain
         store.set("root", "value", -1, List.of());
@@ -58,10 +76,22 @@ public class KacheBenchmark {
     /**
      * Benchmark: cascade delete of 1001 keys (root + 1000 children).
      * Measures the full cost of recursive invalidation.
+     * Rebuilds the chain before each measurement.
      */
     @Benchmark
     public int cascadeDelete() {
+        rebuildChain();
         return store.delete("root");
+    }
+
+    /**
+     * Setup for simpleGet — builds the chain once per iteration batch.
+     * Using Level.Iteration so the chain exists for all GET measurements
+     * within an iteration, without the per-invocation rebuild overhead.
+     */
+    @Setup(Level.Iteration)
+    public void setupChainForGet() {
+        rebuildChain();
     }
 
     /**
@@ -75,7 +105,6 @@ public class KacheBenchmark {
 
     /**
      * Main method for running benchmarks directly (alternative to JMH CLI).
-     * Usage: java -cp kache-1.0-benchmarks.jar KacheBenchmark
      */
     public static void main(String[] args) throws RunnerException {
         Options opts = new OptionsBuilder()

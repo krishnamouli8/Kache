@@ -91,6 +91,11 @@ public class KacheClient implements AutoCloseable {
         return send("DEPS " + key);
     }
 
+    /** TTL key → TTL <seconds> (-2 = missing, -1 = no TTL, 0+ = seconds left) */
+    public String ttl(String key) throws IOException {
+        return send("TTL " + key);
+    }
+
     /** STATS → full stats line */
     public String stats() throws IOException {
         return send("STATS");

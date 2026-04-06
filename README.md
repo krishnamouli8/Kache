@@ -74,6 +74,7 @@ curl http://localhost:8080/health
 | `SET` with both | `SET user:123:recs recs TTL 600 DEPENDS user:123` | `OK` |
 | `GET` | `GET user:123` | `VALUE krishna` or `NULL` |
 | `DEL` | `DEL user:123` | `COUNT 4` (includes cascade count) |
+| `TTL` | `TTL session:abc` | `TTL 3580` or `TTL -1` (no TTL) or `TTL -2` (missing) |
 | `DEPS` | `DEPS user:123` | `DEPS user:123:feed,user:123:recs` |
 | `STATS` | `STATS` | `STATS keyCount=5 hits=12 misses=2 hitRate=0.86 cascades=3 depEdges=4` |
 
@@ -104,21 +105,21 @@ Benchmarked with JMH (Java Microbenchmark Harness) on a 1000-key linear dependen
 These are real numbers from an actual run — not estimates.
 
 ```
-Benchmark                     Mode  Cnt   Score    Error  Units
-KacheBenchmark.cascadeDelete  avgt    5  75.804 ± 31.090  us/op
-KacheBenchmark.simpleGet      avgt    5   1.021 ±  3.145  us/op
+Benchmark                     Mode  Cnt    Score   Error  Units
+KacheBenchmark.cascadeDelete  avgt   10  198.807 ± 6.647  us/op
+KacheBenchmark.simpleGet      avgt   10    0.023 ± 0.001  us/op
 ```
 
-Cascade invalidation across a 1001-key chain completes in ~76 microseconds.
-Simple GET completes in ~1 microsecond. Both are fast enough for real-time use.
+Cascade invalidation across a 1001-key chain completes in ~199 microseconds.
+Simple GET completes in ~23 nanoseconds. Both are fast enough for real-time use.
 
-*Environment: JDK 25, OpenJDK 64-Bit Server VM, 1 thread, 3 warmup iterations, 5 measurement iterations, 1 fork.*
+*Environment: JDK 25, OpenJDK 64-Bit Server VM, 1 thread, 5 warmup iterations, 10 measurement iterations, 1 fork.*
 
 ### Run Benchmarks Yourself
 
 ```bash
 mvn package -Pbenchmark
-java -jar target/kache-1.0-benchmarks.jar -wi 3 -i 5 -f 1
+java -jar target/kache-1.0-benchmarks.jar -wi 5 -i 10 -f 1
 ```
 
 ## Use Cases
@@ -141,6 +142,13 @@ java -jar target/kache-1.0-benchmarks.jar -wi 3 -i 5 -f 1
 | Hit/miss stats           | ✅    | ✅        | ✅    |
 
 ## Known Limitations
+
+- **TTL cascade window**: When a parent key expires via TTL, its children are
+  cascade-invalidated either (a) when the parent is next accessed (lazy, instant) or
+  (b) by the background cleaner thread (proactive, within 10 seconds). Between parent
+  expiry and cleanup, a direct GET on a child key will still return the child's value.
+  This is a deliberate tradeoff — no background threads polling at millisecond intervals
+  means no hidden CPU overhead.
 
 - **Orphaned dependency edges**: If you `SET child DEPENDS ghost_parent` and `ghost_parent`
   never exists, the dependency edge sits in the `deps` map permanently. It's harmless

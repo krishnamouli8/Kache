@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
  *   SET key value [TTL seconds] [DEPENDS parent1,parent2,...]
  *   GET key
  *   DEL key
+ *   TTL key
  *   DEPS key
  *   STATS
  *   PING
@@ -51,6 +52,7 @@ public class CommandHandler extends SimpleChannelInboundHandler<Command> {
             case "SET"   -> handleSet(cmd);
             case "GET"   -> handleGet(cmd);
             case "DEL"   -> handleDel(cmd);
+            case "TTL"   -> handleTtl(cmd);
             case "DEPS"  -> handleDeps(cmd);
             case "STATS" -> handleStats();
             default      -> "ERROR unknown command: " + cmd.name() + "\n";
@@ -137,6 +139,20 @@ public class CommandHandler extends SimpleChannelInboundHandler<Command> {
 
         int removed = store.delete(cmd.args().get(0));
         return "COUNT " + removed + "\n";
+    }
+
+    /**
+     * TTL key → TTL <seconds>
+     * Returns remaining TTL in seconds.
+     * -2 means key doesn't exist, -1 means no TTL set.
+     */
+    private String handleTtl(Command cmd) {
+        if (cmd.args().isEmpty()) {
+            return "ERROR TTL requires a key\n";
+        }
+
+        long remaining = store.ttl(cmd.args().get(0));
+        return "TTL " + remaining + "\n";
     }
 
     /**
